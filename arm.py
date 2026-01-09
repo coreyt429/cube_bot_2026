@@ -15,11 +15,11 @@ class ArmConfig:
     """Configuration for robot arm"""
 
     port: str = "/dev/ttyACM0"
-    extend_channel: int = 4
+    open_channel: int = 4
     rotate_channel: int = 0
-    extend_limit: int = 110
+    open_limit: int = 110
     qus: dict = field(default_factory=dict)
-    key: str = "u"
+    key: str = "l"
 
 
 class Arm:
@@ -29,11 +29,11 @@ class Arm:
         self, controller: Maestro = None, cfg: ArmConfig = None, parent: object = None
     ):
         logger.debug(
-            "__init__(port=%s, extend_channel=%s, rotate_channel=%s, extend_limit=%s, qus=%s)",
+            "__init__(port=%s, open_channel=%s, rotate_channel=%s, open_limit=%s, qus=%s)",
             cfg.port,
-            cfg.extend_channel,
+            cfg.open_channel,
             cfg.rotate_channel,
-            cfg.extend_limit,
+            cfg.open_limit,
             cfg.qus,
         )
         self.parent = parent
@@ -44,11 +44,11 @@ class Arm:
         if self.controller is None:
             self.controller = Maestro(port=self.cfg.port)
         self.extended = True
-        self.deg = 180
+        self.deg = 90
         self.servos = {
-            "extend": Servo(
+            "open": Servo(
                 controller=self.controller,
-                channel=self.cfg.extend_channel,
+                channel=self.cfg.open_channel,
                 config=ServoConfig(span_deg=180),
             ),
             "rotate": Servo(
@@ -58,23 +58,39 @@ class Arm:
             ),
         }
 
-    def retract(self, wait=True):
-        """Retract the arm"""
-        logger.debug("retract(wait=%s)", wait)
-        self.servos["extend"].set_qus(self.cfg.qus.get("retracted", 10000), wait=wait)
+    def __str__(self) -> str:
+        key = getattr(self.cfg, "key", "?")
+        open_ch = getattr(self.cfg, "open_channel", "?")
+        rotate_ch = getattr(self.cfg, "rotate_channel", "?")
+        return f"Arm(key={key}, open_ch={open_ch}, rotate_ch={rotate_ch})"
+
+    def close(self, wait=True):
+        """Close the gripper"""
+        logger.debug("close(wait=%s)", wait)
+        target = self.cfg.qus.get("closed", self.cfg.qus.get("retracted", 10000))
+        self.servos["open"].set_qus(target, wait=wait)
         self.extended = False
 
-    def extend(self, wait=True):
-        """Extend the arm"""
-        logger.debug("extend(wait=%s)", wait)
-        self.servos["extend"].set_qus(self.cfg.qus.get("extended", 6888), wait=wait)
+    def open(self, wait=True):
+        """Open the gripper"""
+        logger.debug("open(wait=%s)", wait)
+        target = self.cfg.qus.get("open", self.cfg.qus.get("extended", 6888))
+        self.servos["open"].set_qus(target, wait=wait)
         self.extended = True
+
+    def retract(self, wait=True):
+        """Backward-compatible alias for close()"""
+        self.close(wait=wait)
+
+    def extend(self, wait=True):
+        """Backward-compatible alias for open()"""
+        self.open(wait=wait)
 
     def set_speed(self, speed: int = 75):
         """Set the speed for the arm"""
         logger.debug("set_speed(speed=%d)", speed)
         speed = max(0, min(75, speed))
-        self.servos["extend"].set_speed(speed)
+        self.servos["open"].set_speed(speed)
         self.servos["rotate"].set_speed(speed)
 
     def set_degrees(self, degrees, wait=True):
@@ -99,7 +115,7 @@ class Arm:
             self.set_degrees(degrees=self.deg - degrees, wait=wait)
             return
         if not initial_state:
-            self.retract()
+            self.close()
         # clockwise rotation
         while degrees > 270:
             self.reset(degrees=0, wait=wait)
@@ -110,7 +126,7 @@ class Arm:
             self.reset(degrees=0, wait=wait)
         self.set_degrees(degrees=self.deg + degrees, wait=wait)
         if not initial_state:
-            self.retract()
+            self.close()
         else:
             self.wiggle()
         return
@@ -131,13 +147,13 @@ class Arm:
                 logging.debug("Setting qu to %s", q)
                 self.servos["rotate"].set_qus(q, wait=True)
 
-    def reset(self, degrees=180, wait=True):
+    def reset(self, degrees=90, wait=True):
         """Reset the arm to a known position"""
         logger.debug("reset(degrees=%s, wait=%s)", degrees, wait)
-        self.retract(wait=wait)
+        self.close(wait=wait)
         self.servos["rotate"].set_degrees(deg=degrees, wait=wait)
         self.deg = degrees
-        self.extend(wait=wait)
+        self.open(wait=wait)
 
     def wait(self):
         """Wait for the controller to finish all movements."""
@@ -147,5 +163,5 @@ class Arm:
 
 if __name__ == "__main__":
     arm = Arm()
-    arm.servos["extend"].set_degrees(0)
+    arm.servos["open"].set_degrees(0)
     arm.servos["rotate"].set_degrees(0)

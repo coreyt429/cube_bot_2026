@@ -44,7 +44,13 @@ class Maestro:
             "Maestro.__init__(port=%s, baud=%s, timeout=%s)", port, baud, timeout
         )
         # For USB Command Port, the baud setting is ignored but must be valid.
+        self.port = port
+        self.baud = baud
+        self.timeout = timeout
         self.ser = serial.Serial(port=port, baudrate=baud, timeout=timeout)
+
+    def __str__(self) -> str:
+        return f"Maestro(port={self.port}, baud={self.baud}, timeout={self.timeout})"
 
     def close(self):
         """
@@ -327,6 +333,14 @@ class Servo:
         self.set_limits()
         self.set_speed()
         self.set_accel()
+
+    def __str__(self) -> str:
+        controller = getattr(self, "_controller", None)
+        controller_id = getattr(controller, "port", None) or "unknown"
+        return (
+            f"Servo(channel={self.channel}, span_deg={self.span_deg}, qus={self.qus}, "
+            f"controller={controller_id})"
+        )
 
     @property
     def deg(self) -> float:

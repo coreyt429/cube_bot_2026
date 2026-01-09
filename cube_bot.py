@@ -25,51 +25,22 @@ class CubeBot:
         self.load_config(port=port)
         self._controller = Maestro(port=self.cfg.get("port", port or "/dev/ttyACM0"))
 
-        self.arms = {
-            "u": Arm(
+        self.arms = {}
+        for arm_key in ("l", "r"):
+            arm_cfg = self._normalize_arm_cfg(arm_key)
+            self.arms[arm_key] = Arm(
                 parent=self,
                 controller=self._controller,
                 cfg=ArmConfig(
-                    extend_channel=self.cfg["arms"]["u"]["extend_channel"],
-                    rotate_channel=self.cfg["arms"]["u"]["rotate_channel"],
-                    qus=self.cfg["arms"]["u"]["qus"],
-                    key="u",
+                    open_channel=arm_cfg["open_channel"],
+                    rotate_channel=arm_cfg["rotate_channel"],
+                    qus=arm_cfg.get("qus", {}),
+                    key=arm_key,
                 ),
-            ),
-            "d": Arm(
-                parent=self,
-                controller=self._controller,
-                cfg=ArmConfig(
-                    extend_channel=self.cfg["arms"]["d"]["extend_channel"],
-                    rotate_channel=self.cfg["arms"]["d"]["rotate_channel"],
-                    qus=self.cfg["arms"]["d"]["qus"],
-                    key="d",
-                ),
-            ),
-            "l": Arm(
-                parent=self,
-                controller=self._controller,
-                cfg=ArmConfig(
-                    extend_channel=self.cfg["arms"]["l"]["extend_channel"],
-                    rotate_channel=self.cfg["arms"]["l"]["rotate_channel"],
-                    qus=self.cfg["arms"]["l"]["qus"],
-                    key="l",
-                ),
-            ),
-            "r": Arm(
-                parent=self,
-                controller=self._controller,
-                cfg=ArmConfig(
-                    extend_channel=self.cfg["arms"]["r"]["extend_channel"],
-                    rotate_channel=self.cfg["arms"]["r"]["rotate_channel"],
-                    qus=self.cfg["arms"]["r"]["qus"],
-                    key="r",
-                ),
-            ),
-        }
+            )
         for arm in self.arms.values():
             arm.reset(wait=False)
-            arm.retract(wait=True)
+            arm.close(wait=True)
 
     def set_speed(self, speed: int = 75):
         """Set the speed for all arms"""
@@ -77,6 +48,39 @@ class CubeBot:
         speed = max(0, min(75, speed))
         for arm in self.arms.values():
             arm.set_speed(speed)
+
+    def _normalize_arm_cfg(self, arm_key: str) -> dict:
+        arms = self.cfg.setdefault("arms", {})
+        if arm_key not in arms:
+            fallback = "u" if arm_key == "l" else "d"
+            if fallback in arms:
+                arms[arm_key] = dict(arms[fallback])
+        defaults = {
+            "l": {"open_channel": 4, "rotate_channel": 0},
+            "r": {"open_channel": 5, "rotate_channel": 1},
+        }
+        arm_cfg = arms.setdefault(arm_key, dict(defaults.get(arm_key, {})))
+        if "open_channel" not in arm_cfg:
+            arm_cfg["open_channel"] = arm_cfg.get("extend_channel", defaults[arm_key]["open_channel"])
+        if "rotate_channel" not in arm_cfg:
+            arm_cfg["rotate_channel"] = defaults[arm_key]["rotate_channel"]
+        qus = arm_cfg.setdefault("qus", {})
+        if "open" not in qus and "extended" in qus:
+            qus["open"] = qus["extended"]
+        if "closed" not in qus and "retracted" in qus:
+            qus["closed"] = qus["retracted"]
+        if qus.get("state") == "extended":
+            qus["state"] = "open"
+        elif qus.get("state") == "retracted":
+            qus["state"] = "closed"
+        return arm_cfg
+
+    def _require_arms(self, arm_keys) -> bool:
+        missing = [key for key in arm_keys if key not in self.arms]
+        if missing:
+            logger.warning("Missing arms for operation: %s", ", ".join(missing))
+            return False
+        return True
 
     def load_config(self, port=None):
         """
@@ -94,14 +98,14 @@ class CubeBot:
             self.cfg = {
                 "port": port or "/dev/ttyACM0",
                 "arms": {
-                    "u": {"extend_channel": 4, "rotate_channel": 0},
-                    "d": {"extend_channel": 5, "rotate_channel": 1},
-                    "l": {"extend_channel": 6, "rotate_channel": 2},
-                    "r": {"extend_channel": 7, "rotate_channel": 3},
+                    "l": {"open_channel": 4, "rotate_channel": 0},
+                    "r": {"open_channel": 5, "rotate_channel": 1},
                 },
             }
             logger.info("Using default config")
             self.save_config()
+        for arm_key in ("l", "r"):
+            self._normalize_arm_cfg(arm_key)
         logger.debug("Loaded configuration for %s: %s", self.name, self.cfg)
 
     # def load_cube(self):
@@ -126,9 +130,9 @@ class CubeBot:
         Rotate the arm clockwise
         """
         logger.info("Rotating arm clockwise: %s", arm.cfg.key)
-        arm.retract(wait=True)
+        arm.close(wait=True)
         arm.set_degrees(90, wait=True)
-        arm.extend(wait=True)
+        arm.open(wait=True)
         logger.debug("Setting degrees to 180, current_qu=%s", arm.servos["rotate"].qus)
         arm.set_degrees(180, wait=wait)
         arm.wiggle()
@@ -138,9 +142,9 @@ class CubeBot:
         Rotate the arm counter-clockwise
         """
         logger.info("Rotating arm counter-clockwise: %s", arm.cfg.key)
-        arm.retract(wait=True)
+        arm.close(wait=True)
         arm.set_degrees(180, wait=True)
-        arm.extend(wait=True)
+        arm.open(wait=True)
         logger.debug("Setting degrees to 90, current_qu=%s", arm.servos["rotate"].qus)
         arm.set_degrees(90, wait=wait)
         arm.wiggle()
@@ -154,6 +158,8 @@ class CubeBot:
             2 - back
             3 - right
         """
+        if not self._require_arms(["u", "d", "l", "r"]):
+            return
         while self.cube_orientation != target:
             # if one back hits it, go ccw
             if (self.cube_orientation - 1) % 4 == target:
@@ -168,15 +174,18 @@ class CubeBot:
         """
         if arm.deg != 180:
             logger.info("Resetting arm")
-            arm.retract(wait=True)
+            arm.close(wait=True)
             arm.set_degrees(180, wait=True)
         if arm.extended is False:
-            arm.extend(wait=True)
+            arm.open(wait=True)
 
     def _turn(self, face: str, clockwise: bool = True, wait: bool = True):
         """
         Turn the specified face of the cube
         """
+        if face not in self.arms:
+            logger.warning("Arm %s not configured for turn", face)
+            return
         arm = self.arms[face]
         if clockwise:
             self._rotate_clockwise(arm, wait=wait)
@@ -219,7 +228,7 @@ class CubeBot:
         logger.info("Engaging arm")
         self.disengage(wait=False)
         for arm in self.arms.values():
-            arm.extend(wait=True)
+            arm.open(wait=True)
 
     def disengage(self, wait: bool = True):
         """
@@ -227,7 +236,7 @@ class CubeBot:
         """
         logger.info("Disengaging arm, wait: %s", wait)
         for arm in self.arms.values():
-            arm.retract(wait=wait)
+            arm.close(wait=wait)
         for arm in self.arms.values():
             arm.set_degrees(180, wait=wait)
 
@@ -246,6 +255,8 @@ class CubeBot:
         """
         Rotate the cube around the Y-axis
         """
+        if not self._require_arms(["u", "d", "l", "r"]):
+            return
         logger.info(
             "Rotating cube %s", "clockwise" if clockwise else "counter-clockwise"
         )
@@ -253,7 +264,7 @@ class CubeBot:
             self._reset_arm(self.arms[face])
         logger.debug("retracting arms")
         for face in ["l", "r"]:
-            self.arms[face].retract(wait=True)
+            self.arms[face].close(wait=True)
         logger.debug("rotating cube")
         turns = [270, 90]
         if not clockwise:
@@ -262,7 +273,7 @@ class CubeBot:
         self.arms["d"].set_degrees(turns[1], wait=True)
         logger.debug("extending arms")
         for face in ["l", "r"]:
-            self.arms[face].extend(wait=True)
+            self.arms[face].open(wait=True)
         for face in ["u", "d"]:
             self._reset_arm(self.arms[face])
         if clockwise:
@@ -274,6 +285,8 @@ class CubeBot:
         """
         Rotate the cube around the X-axis
         """
+        if not self._require_arms(["u", "d", "l", "r"]):
+            return
         logger.info(
             "Rotating cube %s", "clockwise" if clockwise else "counter-clockwise"
         )
@@ -281,7 +294,7 @@ class CubeBot:
             self._reset_arm(self.arms[face])
         logger.debug("retracting arms")
         for face in ["u", "d"]:
-            self.arms[face].retract(wait=True)
+            self.arms[face].close(wait=True)
         logger.debug("rotating cube")
         turns = [90, 270]
         if not clockwise:
@@ -290,7 +303,7 @@ class CubeBot:
         self.arms["r"].set_degrees(turns[1], wait=True)
         logger.debug("extending arms")
         for face in ["u", "d"]:
-            self.arms[face].extend(wait=True)
+            self.arms[face].open(wait=True)
         for face in ["l", "r"]:
             self._reset_arm(self.arms[face])
 
@@ -298,6 +311,8 @@ class CubeBot:
         """
         Rotate the cube around the Z-axis
         """
+        if not self._require_arms(["u", "d", "l", "r"]):
+            return
         logger.info(
             "Rotating cube %s", "clockwise" if clockwise else "counter-clockwise"
         )
@@ -312,6 +327,8 @@ class CubeBot:
 
     def middle(self, clockwise: bool = True):
         """rotate middle slice"""
+        if not self._require_arms(["l", "r"]):
+            return
         self.orient_cube(target=0)
         turns = [90, 270]
         if not clockwise:
@@ -327,6 +344,8 @@ class CubeBot:
 
     def equator(self, clockwise: bool = True):
         """rotate equator slice"""
+        if not self._require_arms(["u", "d"]):
+            return
         self.orient_cube(target=0)
         turns = [90, 270]
         if not clockwise:
@@ -342,6 +361,8 @@ class CubeBot:
 
     def z_slice(self, clockwise: bool = True):
         """rotate z slice"""
+        if not self._require_arms(["l", "r"]):
+            return
         logger.info(
             "Rotating z slice %s", "clockwise" if clockwise else "counter-clockwise"
         )
@@ -426,6 +447,8 @@ class CubeBot:
         """
         Get the current state of the face the camera is on
         """
+        if not self._require_arms(["l", "r"]):
+            return "XXXXXXXXX"
         self.frame_shot()
 
         response = requests.get("http://127.0.0.1:8088/face")
@@ -439,28 +462,33 @@ class CubeBot:
             logging.info("Face state: %s", face_string)
         for arm_key in ['l','r']:
             arm = self.arms[arm_key]
-            arm.extend()
+            arm.open()
         return face_string
     
     def frame_shot(self):
         """Move grippers out of the camera view"""
+        if not self._require_arms(["l", "r"]):
+            return
         for arm_key in ['l','r']:
             arm = self.arms[arm_key]
             arm.reset()
-            arm.extend()
+            arm.open()
 
         for arm_key in ['u','d']:
-            arm = self.arms[arm_key]
-            arm.reset(degrees=90)
+            if arm_key in self.arms:
+                arm = self.arms[arm_key]
+                arm.reset(degrees=90)
 
         for arm_key in ['l','r']:
             arm = self.arms[arm_key]
-            arm.retract()
+            arm.close()
 
     def scan_cube(self) -> str:
         """
         Scan the cube and return its current state
         """
+        if not self._require_arms(["l", "r"]):
+            return "X" * 54
         faces = {}
         for face in ['B','L','F','R']:
             faces[face] = self._get_face_state()
@@ -469,6 +497,7 @@ class CubeBot:
                 self.arms[arm_key].reset()
         self._rotate_cube_x(clockwise=False)
         for arm_key in ['u', 'd']:
+            if arm_key in self.arms:
                 self.arms[arm_key].reset()
         for face in ['D', 'U']:
             for arm_key in ['l', 'r']:

@@ -25,12 +25,12 @@ logging.basicConfig(level=logging.INFO, filename="calibrate.log")
 logger = logging.getLogger("calibrate")
 logger.setLevel(logging.DEBUG)
 
-# Keys: u/d/l/r to select arm. Arrow keys:
-#  - UP/DOWN    => adjust EXTEND servo QUS (+/-)
+# Keys: l/r to select arm. Arrow keys:
+#  - UP/DOWN    => adjust OPEN servo QUS (+/-)
 #  - LEFT/RIGHT => adjust ROTATE servo QUS (-/+)
 # Other keys: s = save config, q = quit, [ / ] = step -/+
 
-ARM_KEYS = ["u", "d", "l", "r"]
+ARM_KEYS = ["l", "r"]
 
 # Rotation angle buckets (degrees) selectable via number keys
 ROT_BUCKET_KEYS = {
@@ -41,8 +41,8 @@ ROT_BUCKET_KEYS = {
 }
 
 IN_OUT_KEYS = {
-    "i": "retract",
-    "o": "extend",
+    "o": "open",
+    "c": "close",
 }
 
 # Key codes for arrows
@@ -52,8 +52,8 @@ KEY_LEFT = "KEY_LEFT"
 KEY_RIGHT = "KEY_RIGHT"
 
 MOVEMENTS = {
-    KEY_UP: {"servo_key": "extend", "direction": +1},
-    KEY_DOWN: {"servo_key": "extend", "direction": -1},
+    KEY_UP: {"servo_key": "open", "direction": +1},
+    KEY_DOWN: {"servo_key": "open", "direction": -1},
     KEY_LEFT: {"servo_key": "rotate", "direction": -1},
     KEY_RIGHT: {"servo_key": "rotate", "direction": +1},
 }
@@ -132,9 +132,9 @@ def clamp(v: int, lo: int, hi: int) -> int:
 
 def resolve_servos(bot: CubeBot, arm_key: str) -> dict | None:
     """
-    Try to find the extend and rotate servos for the given arm key.
+    Try to find the open and rotate servos for the given arm key.
     We support a few layouts to be resilient to internal structure differences.
-    Returns (servos['extend'], servos['rotate']).
+    Returns (servos['open'], servos['rotate']).
     """
     logger.debug("Resolving servos for arm: %s, bot: %s", arm_key, bot)
     logger.debug("Bot arms: %s", getattr(bot, "arms", None))
@@ -159,10 +159,10 @@ def render_table(bot: CubeBot, current_arm: str):
     )
 
     table.add_column("Arm")
-    table.add_column("EXT qus")
-    table.add_column("EXT deg")
-    table.add_column("Saved ext")
-    table.add_column("Saved ret")
+    table.add_column("OPEN qus")
+    table.add_column("OPEN deg")
+    table.add_column("Saved open")
+    table.add_column("Saved close")
     table.add_column("State")
     table.add_column("ROT qus")
     table.add_column("ROT deg")
@@ -196,11 +196,11 @@ def render_table(bot: CubeBot, current_arm: str):
         saved = ensurecfg_qus_path(bot, arm_key)
 
         try:
-            ext_qus = int(getattr(servos["extend"], "qus", 0) or 0)
+            ext_qus = int(getattr(servos["open"], "qus", 0) or 0)
         except (ValueError, TypeError, AttributeError):
             ext_qus = 0
         try:
-            ext_deg = float(getattr(servos["extend"], "deg", 0.0) or 0.0)
+            ext_deg = float(getattr(servos["open"], "deg", 0.0) or 0.0)
         except (ValueError, TypeError, AttributeError):
             ext_deg = 0.0
 
@@ -221,8 +221,8 @@ def render_table(bot: CubeBot, current_arm: str):
             f"{marker}{arm_key.upper()}",
             f"{ext_qus}",
             f"{ext_deg:0.2f}",
-            f"{saved.get('extended') if saved.get('extended') is not None else '-'}",
-            f"{saved.get('retracted') if saved.get('retracted') is not None else '-'}",
+            f"{saved.get('open') if saved.get('open') is not None else '-'}",
+            f"{saved.get('closed') if saved.get('closed') is not None else '-'}",
             saved.get("state", ""),
             f"{rot_qus}",
             f"{rot_deg:0.2f}",
@@ -247,8 +247,8 @@ def render_ui(bot: CubeBot, state: dict):
     )
 
     title = Text(
-        "CubeBot Calibration\narrows adjust QUS (extend: ↑/↓, rotate: ←/→)\n"
-        "[u/d/l/r] select arm   [o]=mark extended  [i]=mark retracted \n"
+        "CubeBot Calibration\narrows adjust QUS (open: ↑/↓, rotate: ←/→)\n"
+        "[l/r] select arm   [o]=mark open  [c]=mark closed \n"
         "[0/9/1/2] rot bucket (0°,90°,180°,270°) — selecting moves to saved angle\n"
         "[s] save   [q] quit   [ [ ] step ]",
         style="bold",
@@ -295,7 +295,7 @@ def adjust_servo_qus(
     """
     Increment a servo’s quarter‑microsecond target by `delta_qus`, send it, and
     persist to `bot.cfg`:
-    - role "extend": write current QUS into ['extended'|'retracted'] based on state
+    - role "open": write current QUS into ['open'|'closed'] based on state
     - role "rotate": write current QUS into the selected rotation bucket
     calibrate.py:290:0: R0913: Too many arguments (6/5) (too-many-arguments)
     calibrate.py:290:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
@@ -323,11 +323,11 @@ def adjust_servo_qus(
             servo.maestro.set_target_qus(channel=servo.channel, target_qus=new_qus)
         setattr(servo, "qus", new_qus)
 
-    # Persist live edits into config for the extend servo based on current state
-    if role == "extend":
+    # Persist live edits into config for the open servo based on current state
+    if role == "open":
         saved = ensurecfg_qus_path(arm.parent, arm.cfg.key)
-        state_key = saved.get("state", "retracted")
-        if state_key in ("extended", "retracted"):
+        state_key = saved.get("state", "closed")
+        if state_key in ("open", "closed"):
             try:
                 curr_qus_persist = int(getattr(servo, "qus", 0) or 0)
             except (ValueError, TypeError, AttributeError):
@@ -344,14 +344,18 @@ def adjust_servo_qus(
         saved[bucket] = curr_rot_qus
 
 
-def do_extend_or_retract(bot: CubeBot, arm_key: str, action: str):
+def do_open_or_close(bot: CubeBot, arm_key: str, action: str):
     """
-    action in {"extend", "retract"}. Calls arm methods if present;
-    always records the current extend servo QUS into
+    action in {"open", "close"}. Calls arm methods if present;
+    always records the current open servo QUS into
     cfg['arms'][arm]['qus'][action] and sets 'state'.
     """
     servos = resolve_servos(bot, arm_key)
     arm = get_arm(bot, arm_key)
+    logger.debug("Doing action '%s' on arm '%s'", action, arm_key)
+    logger.debug("Arm object: %s", arm)
+    for k, servo in servos.items():
+        logger.debug("Servo: %s %s", k, servo)
 
     # Try method on arm first
     try:
@@ -360,31 +364,31 @@ def do_extend_or_retract(bot: CubeBot, arm_key: str, action: str):
     except (TypeError, AttributeError):
         pass
 
-    # Record current extend servo qus into config and mark state
+    # Record current open servo qus into config and mark state
     try:
-        curr_qus = int(getattr(servos["extend"], "qus", 0) or 0)
+        curr_qus = int(getattr(servos["open"], "qus", 0) or 0)
     except (ValueError, TypeError, AttributeError):
         curr_qus = 0
     saved = ensurecfg_qus_path(bot, arm_key)
     if "state" not in saved:
-        saved["state"] = "retracted"
-    key = "extended" if action == "extend" else "retracted"
+        saved["state"] = "closed"
+    key = "open" if action == "open" else "closed"
     saved[key] = curr_qus
     saved["state"] = key
 
 
 def apply_saved(bot: CubeBot, arm_key: str, action: str):
     """
-    Apply the saved extend target for `action` ("extend" or "retract") to the arm’s
-    extend servo, if present in config.
+    Apply the saved open target for `action` ("open" or "close") to the arm’s
+    open servo, if present in config.
     """
     servos = resolve_servos(bot, arm_key)
     saved = ensurecfg_qus_path(bot, arm_key)
-    key = "extended" if action == "extend" else "retracted"
+    key = "open" if action == "open" else "closed"
     target_qus = saved.get(key)
-    if target_qus is not None and hasattr(servos["extend"], "set_qus"):
+    if target_qus is not None and hasattr(servos["open"], "set_qus"):
         try:
-            servos["extend"].set_qus(int(target_qus))
+            servos["open"].set_qus(int(target_qus))
         except (ValueError, TypeError, AttributeError):
             pass
 
@@ -418,9 +422,10 @@ def _sigint_handler_factory(bot: CubeBot):
     def _handler(signum, frame):
         print(signum, frame)
         try:
-            bot.disengage()
+            for arm in bot.arms.values():
+                arm.open(wait=True)
         finally:
-            print("\nInterrupted. Disengaged bot.")
+            print("\nInterrupted. Opened claws.")
             sys.exit(0)
 
     return _handler
@@ -433,8 +438,8 @@ def main():
     calibrate.py:433:0: R0915: Too many statements (51/50) (too-many-statements)
     """
     state = {
-        "current_arm": "u",
-        "rot_bucket": "180",
+        "current_arm": "l",
+        "rot_bucket": "90",
         "step_qus": 8,
     }
     console = Console(
@@ -462,7 +467,7 @@ def main():
                 break
             if key == "s":
                 bot.save_config()
-            elif key in ("u", "d", "l", "r"):
+            elif key in ("l", "r"):
                 state["current_arm"] = key
             elif key == "[":
                 state["step_qus"] = max(1, state["step_qus"] // 2)
@@ -471,8 +476,9 @@ def main():
             elif key in ("0", "9", "1", "2"):
                 state["rot_bucket"] = ROT_BUCKET_KEYS.get(key, state["rot_bucket"])
                 apply_saved_rotate(bot, state["current_arm"], state["rot_bucket"])
-            elif key in ["o", "i"]:
-                do_extend_or_retract(bot, state["current_arm"], IN_OUT_KEYS.get(key))
+            elif key in ["o", "c"]:
+                logger.debug("Doing open/close action '%s' on arm '%s'", key, state["current_arm"])
+                do_open_or_close(bot, state["current_arm"], IN_OUT_KEYS.get(key))
             else:
                 servos = resolve_servos(bot, state["current_arm"])
                 if key in MOVEMENTS:
@@ -482,13 +488,15 @@ def main():
                         movement["servo_key"],
                         servos[movement["servo_key"]],
                         movement["direction"] * state["step_qus"],
+                        rot_bucket=state["rot_bucket"],
                     )
             # Update the live view after every key
             live.update(render_ui(bot, state), refresh=True)
 
     # Try to disengage on normal exit
     try:
-        bot.disengage()
+        for arm in bot.arms.values():
+            arm.open(wait=True)
     except (ValueError, TypeError, AttributeError):
         pass
 
