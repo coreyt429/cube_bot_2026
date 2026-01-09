@@ -1,0 +1,99 @@
+# init raspbian OS with pi Imager
+sudo raspi-config
+# enable VNC
+# enable i2c
+sudo apt update
+sudo apt upgrade
+sudo apt install git python3-pip python3-setuptools python3-smbus
+
+# install robot-hat
+cd ~/
+git clone -b v2.0 https://github.com/sunfounder/robot-hat.git
+cd robot-hat
+sudo python3 setup.py install
+
+# install vilib
+cd ~/
+git clone -b picamera2 https://github.com/sunfounder/vilib.git
+cd vilib
+sudo python3 install.py
+
+# install picar-x
+cd ~/
+git clone -b v2.0 https://github.com/sunfounder/picar-x.git --depth 1
+cd picar-x
+sudo python3 setup.py install
+
+# setup sound
+cd ~/picar-x
+sudo bash i2samp.sh
+
+# calibrate
+
+cd ~/picar-x/example/calibration
+sudo python3 calibration.py
+
+cd ~/picar-x/example/calibration
+sudo python3 grayscale_calibration.py
+
+# increase swap
+sudo apt install zram-tools
+sudo dphys-swapfile swapoff
+sudo nano /etc/dphys-swapfile
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+
+# install prerequisites
+sudo apt install -y git colcon python3-rosdep2 vcstool wget python3-flake8-docstrings python3-pip python3-pytest-cov python3-flake8-blind-except python3-flake8-builtins python3-flake8-class-newline python3-flake8-comprehensions python3-flake8-deprecated python3-flake8-import-order python3-flake8-quotes python3-pytest-repeat python3-pytest-rerunfailures python3-vcstools libx11-dev libxrandr-dev libasio-dev libtinyxml2-dev
+
+# create directory
+mkdir -p ~/ros2_jazzy/src
+cd ~/ros2_jazzy
+
+vcs import --input https://raw.githubusercontent.com/ros2/ros2/jazzy/ros2.repos src
+sudo rm /etc/ros/rosdep/sources.list.d/20-default.list
+sudo apt upgrade
+sudo rosdep init
+rosdep update
+rosdep install --from-paths src --ignore-src --rosdistro jazzy -y --skip-keys "fastcdr rti-connext-dds-6.0.1 urdfdom_headers python3-vcstool"
+colcon build --symlink-install --parallel-workers 8
+echo “source ~/ros2_jazzy/install/local_setup.bash” >> ~/.bashrc
+source ~/.bashrc
+
+
+# fix sound without sudo
+# audio for /dev/snd/*
+sudo usermod -aG audio $USER
+# video is often needed on Pi for some stacks; harmless to add
+sudo usermod -aG video $USER
+# if your code touches GPIO/I²C, add these so you don't need sudo for pins/bus
+sudo usermod -aG gpio $USER
+sudo usermod -aG i2c $USER
+
+# allow user code to connect to pins 
+sudo systemctl enable --now pigpiod
+
+# ideally, I should track down what is starting aplay, probably vnc, but for noe, just kill it on reboot
+# after reboot, run fix_sound.sh, which runs:
+sudo systemctl stop aplay.service
+sudo systemctl disable aplay.service
+sudo systemctl mask aplay.service
+ps -ef | grep aplay
+pactl list short sinks
+#pactl set-default-sink alsa_output.platform-soc_107c000000_sound.stereo-fallback
+pinctrl set 20 op dh
+
+# robot_hat_ros already exists, no need to rewrite for now
+# cd ~/ros2_ws/src
+# git clone git@github.com:sunfounder/robot_hat_ros.git
+# cd ~/ros2_ws
+# rosdep update
+# rosdep install --from-paths src --ignore-src -r -y
+# colcon build --symlink-install
+# source ~/ros2_ws/install/setup.bash
+# hmm.  this module seems to be missing its interfaces
+
+# trying this method now.
+git clone https://github.com/gzub/ros2-picarx.git
+cd ros2-picarx
+

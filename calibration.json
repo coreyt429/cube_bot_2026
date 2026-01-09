@@ -1,0 +1,57 @@
+{
+    "port": "/dev/cu.usbmodem004874901",
+    "arms": {
+        "u": {
+            "extend_channel": 4,
+            "rotate_channel": 0,
+            "qus": {
+                "extended": 6984,
+                "state": "extended",
+                "retracted": 10000,
+                "180": 7341,
+                "0": 2000,
+                "90": 4612,
+                "270": 9848
+            }
+        },
+        "d": {
+            "extend_channel": 5,
+            "rotate_channel": 1,
+            "qus": {
+                "extended": 6808,
+                "state": "extended",
+                "retracted": 10000,
+                "180": 7381,
+                "0": 2084,
+                "90": 4564,
+                "270": 10000
+            }
+        },
+        "l": {
+            "extend_channel": 6,
+            "rotate_channel": 2,
+            "qus": {
+                "extended": 6792,
+                "state": "extended",
+                "retracted": 10000,
+                "180": 7429,
+                "0": 2084,
+                "90": 4804,
+                "270": 10000
+            }
+        },
+        "r": {
+            "extend_channel": 7,
+            "rotate_channel": 3,
+            "qus": {
+                "extended": 6792,
+                "state": "extended",
+                "retracted": 10000,
+                "180": 7373,
+                "0": 2216,
+                "90": 4756,
+                "270": 9960
+            }
+        }
+    }
+}
