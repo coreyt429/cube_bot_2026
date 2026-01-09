@@ -52,10 +52,10 @@ KEY_LEFT = "KEY_LEFT"
 KEY_RIGHT = "KEY_RIGHT"
 
 MOVEMENTS = {
-    KEY_UP: {"servo_key": "open", "direction": +1},
-    KEY_DOWN: {"servo_key": "open", "direction": -1},
-    KEY_LEFT: {"servo_key": "rotate", "direction": -1},
-    KEY_RIGHT: {"servo_key": "rotate", "direction": +1},
+    KEY_UP: {"servo_key": "open", "direction": -1},
+    KEY_DOWN: {"servo_key": "open", "direction": +1},
+    KEY_LEFT: {"servo_key": "rotate", "direction": +1},
+    KEY_RIGHT: {"servo_key": "rotate", "direction": -1},
 }
 
 
@@ -130,7 +130,7 @@ def clamp(v: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, v))
 
 
-def resolve_servos(bot: CubeBot, arm_key: str) -> dict | None:
+def resolve_servos(bot: CubeBot, arm_key: str) -> dict:
     """
     Try to find the open and rotate servos for the given arm key.
     We support a few layouts to be resilient to internal structure differences.
@@ -141,11 +141,9 @@ def resolve_servos(bot: CubeBot, arm_key: str) -> dict | None:
     logger.debug(
         "Bot arm %s servos: %s", arm_key, getattr(bot.arms[arm_key], "servos", None)
     )
-    return (
-        bot.arms[arm_key].servos
-        if hasattr(bot, "arms") and arm_key in getattr(bot, "arms")
-        else None
-    )
+    if not (hasattr(bot, "arms") and arm_key in getattr(bot, "arms")):
+        raise ValueError(f"Arm '{arm_key}' not found on bot")
+    return bot.arms[arm_key].servos
 
 
 def render_table(bot: CubeBot, current_arm: str):
@@ -212,10 +210,6 @@ def render_table(bot: CubeBot, current_arm: str):
             rot_deg = float(getattr(servos["rotate"], "deg", 0.0) or 0.0)
         except (ValueError, TypeError, AttributeError):
             rot_deg = 0.0
-
-        # def mark(bucket: str) -> str:
-        #     # Use plain asterisks to highlight the active bucket without Rich markup
-        #     return f"*{bucket}*" if bucket == rot_bucket else bucket
 
         table.add_row(
             f"{marker}{arm_key.upper()}",
@@ -431,6 +425,44 @@ def _sigint_handler_factory(bot: CubeBot):
     return _handler
 
 
+def handle_key(bot: CubeBot, state: dict, key: str) -> bool:
+    """function to handle captured keypresses"""
+    if key == "q":
+        return False
+    if key == "s":
+        bot.save_config()
+    elif key in ("l", "r"):
+        state["current_arm"] = key
+    elif key == "[":
+        state["step_qus"] = max(1, state["step_qus"] // 2)
+    elif key == "]":
+        state["step_qus"] = min(1024, state["step_qus"] * 2)
+    elif key in ("0", "9", "1", "2"):
+        state["rot_bucket"] = ROT_BUCKET_KEYS.get(key, state["rot_bucket"])
+        apply_saved_rotate(bot, state["current_arm"], state["rot_bucket"])
+    elif key in ["o", "c"]:
+        logger.debug(
+            "Doing open/close action '%s' on arm '%s'",
+            key,
+            state["current_arm"],
+        )
+        do_open_or_close(bot, state["current_arm"], IN_OUT_KEYS.get(key))
+    else:
+        servos = resolve_servos(bot, state["current_arm"])
+        if not servos:
+            return True
+        if key in MOVEMENTS:
+            movement = MOVEMENTS[key]
+            adjust_servo_qus(
+                bot.arms[state["current_arm"]],
+                movement["servo_key"],
+                servos[movement["servo_key"]],
+                movement["direction"] * state["step_qus"],
+                rot_bucket=state["rot_bucket"],
+            )
+    return True
+
+
 def main():
     """
     Main Logic
@@ -462,34 +494,8 @@ def main():
         transient=True,  # leave the terminal clean on exit;
     ) as live:
         while True:
-            key = read_key()
-            if key == "q":
+            if not handle_key(bot, state, read_key()):
                 break
-            if key == "s":
-                bot.save_config()
-            elif key in ("l", "r"):
-                state["current_arm"] = key
-            elif key == "[":
-                state["step_qus"] = max(1, state["step_qus"] // 2)
-            elif key == "]":
-                state["step_qus"] = min(1024, state["step_qus"] * 2)
-            elif key in ("0", "9", "1", "2"):
-                state["rot_bucket"] = ROT_BUCKET_KEYS.get(key, state["rot_bucket"])
-                apply_saved_rotate(bot, state["current_arm"], state["rot_bucket"])
-            elif key in ["o", "c"]:
-                logger.debug("Doing open/close action '%s' on arm '%s'", key, state["current_arm"])
-                do_open_or_close(bot, state["current_arm"], IN_OUT_KEYS.get(key))
-            else:
-                servos = resolve_servos(bot, state["current_arm"])
-                if key in MOVEMENTS:
-                    movement = MOVEMENTS[key]
-                    adjust_servo_qus(
-                        bot.arms[state["current_arm"]],
-                        movement["servo_key"],
-                        servos[movement["servo_key"]],
-                        movement["direction"] * state["step_qus"],
-                        rot_bucket=state["rot_bucket"],
-                    )
             # Update the live view after every key
             live.update(render_ui(bot, state), refresh=True)
 

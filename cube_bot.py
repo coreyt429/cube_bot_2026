@@ -61,7 +61,9 @@ class CubeBot:
         }
         arm_cfg = arms.setdefault(arm_key, dict(defaults.get(arm_key, {})))
         if "open_channel" not in arm_cfg:
-            arm_cfg["open_channel"] = arm_cfg.get("extend_channel", defaults[arm_key]["open_channel"])
+            arm_cfg["open_channel"] = arm_cfg.get(
+                "extend_channel", defaults[arm_key]["open_channel"]
+            )
         if "rotate_channel" not in arm_cfg:
             arm_cfg["rotate_channel"] = defaults[arm_key]["rotate_channel"]
         qus = arm_cfg.setdefault("qus", {})
@@ -440,7 +442,7 @@ class CubeBot:
         """
         commands = command_string.replace(" ", ",").replace(",,", ",").split(",")
         for command in commands:
-            logger.info("Running command: %s", command) 
+            logger.info("Running command: %s", command)
             self.run_command(command)
 
     def _get_face_state(self) -> str:
@@ -451,35 +453,35 @@ class CubeBot:
             return "XXXXXXXXX"
         self.frame_shot()
 
-        response = requests.get("http://127.0.0.1:8088/face")
-        face_string = 'XXXXXXXXX'
+        response = requests.get("http://127.0.0.1:8088/face", timeout=5)
+        face_string = "XXXXXXXXX"
         if response.status_code == 200:
-            face_string = ''
+            face_string = ""
             result = response.json()
             logging.info("Face detection result: %s", result.get("labels"))
             for color in result.get("labels", []):
                 face_string += color[0].upper()
             logging.info("Face state: %s", face_string)
-        for arm_key in ['l','r']:
+        for arm_key in ["l", "r"]:
             arm = self.arms[arm_key]
             arm.open()
         return face_string
-    
+
     def frame_shot(self):
         """Move grippers out of the camera view"""
         if not self._require_arms(["l", "r"]):
             return
-        for arm_key in ['l','r']:
+        for arm_key in ["l", "r"]:
             arm = self.arms[arm_key]
             arm.reset()
             arm.open()
 
-        for arm_key in ['u','d']:
+        for arm_key in ["u", "d"]:
             if arm_key in self.arms:
                 arm = self.arms[arm_key]
                 arm.reset(degrees=90)
 
-        for arm_key in ['l','r']:
+        for arm_key in ["l", "r"]:
             arm = self.arms[arm_key]
             arm.close()
 
@@ -490,24 +492,24 @@ class CubeBot:
         if not self._require_arms(["l", "r"]):
             return "X" * 54
         faces = {}
-        for face in ['B','L','F','R']:
+        for face in ["B", "L", "F", "R"]:
             faces[face] = self._get_face_state()
             self._rotate_cube_y(clockwise=True)
-            for arm_key in ['l', 'r']:
+            for arm_key in ["l", "r"]:
                 self.arms[arm_key].reset()
         self._rotate_cube_x(clockwise=False)
-        for arm_key in ['u', 'd']:
+        for arm_key in ["u", "d"]:
             if arm_key in self.arms:
                 self.arms[arm_key].reset()
-        for face in ['D', 'U']:
-            for arm_key in ['l', 'r']:
+        for face in ["D", "U"]:
+            for arm_key in ["l", "r"]:
                 self.arms[arm_key].reset()
             faces[face] = self._get_face_state()
             self._rotate_cube_y(clockwise=True)
             self._rotate_cube_y(clockwise=True)
         self._rotate_cube_x(clockwise=True)
 
-        face_state = ''.join(faces.get(face, 'XXXXXXXXX') for face in FACES)
+        face_state = "".join(faces.get(face, "XXXXXXXXX") for face in FACES)
         logger.info("Current cube state:\n%s", face_state)
         return face_state
 
