@@ -1,7 +1,7 @@
 [project]
 name = "cube-solver"
 version = "0.1.0"
-description = "Add your description here"
+description = "Software for Rubik's cube solver bot"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["ruff", "pylint", "pyserial", "kociemba", "gpiod"]
