@@ -13,12 +13,41 @@ line_to_button = {v: k for k, v in buttons.items()}
 CHIP = "/dev/gpiochip0"
 LINES = list(line_to_button.keys())
 
+
 settings = gpiod.LineSettings(
     direction=Direction.INPUT,
     edge_detection=Edge.BOTH,
     # If your libgpiod build supports it, uncomment to use internal pull-ups:
     # bias=gpiod.line.Bias.PULL_UP,
 )
+
+# Helper to robustly detect falling edge events across gpiod versions.
+def _is_falling_event(ev) -> bool:
+    """Return True if this edge event represents a falling edge.
+
+    libgpiod's Python bindings have had a few enum naming variants across versions,
+    so we detect falling edges defensively.
+    """
+    et = getattr(ev, "event_type", None)
+
+    # Newer variants: gpiod.LineEvent.Type.FALLING_EDGE / RISING_EDGE
+    try:
+        le = getattr(gpiod, "LineEvent", None)
+        t = getattr(le, "Type", None) if le else None
+        if t is not None:
+            if hasattr(t, "FALLING_EDGE") and et == t.FALLING_EDGE:
+                return True
+            if hasattr(t, "FALLING") and et == t.FALLING:
+                return True
+    except Exception:
+        pass
+
+    # Fallback: enum name or string contains "FALL"
+    name = getattr(et, "name", "")
+    if isinstance(name, str) and name:
+        return "FALL" in name.upper()
+
+    return "FALL" in str(et).upper()
 
 from luma.core.interface.serial import i2c
 from luma.oled.device import ssd1306
@@ -52,7 +81,7 @@ with gpiod.request_lines(
         if req.wait_edge_events(timeout=0.05):
             for ev in req.read_edge_events():
                 btn = line_to_button.get(ev.line_offset, f"GPIO{ev.line_offset}")
-                edge = "PRESS" if ev.event_type == Edge.FALLING_EDGE else "RELEASE"
+                edge = "PRESS" if _is_falling_event(ev) else "RELEASE"
 
                 last_button = btn
                 last_edge = edge
