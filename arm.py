@@ -150,10 +150,10 @@ class Arm:
     def reset(self, degrees=90, wait=True):
         """Reset the arm to a known position"""
         logger.debug("reset(degrees=%s, wait=%s)", degrees, wait)
-        self.close(wait=wait)
+        self.open(wait=wait)
         self.servos["rotate"].set_degrees(deg=degrees, wait=wait)
         self.deg = degrees
-        self.open(wait=wait)
+        self.close(wait=wait)
 
     def wait(self):
         """Wait for the controller to finish all movements."""
