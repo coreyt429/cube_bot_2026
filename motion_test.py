@@ -24,6 +24,12 @@ def up(bot, clockwise=True):
 
 if __name__ == "__main__":
     bot = CubeBot("calibration")
+    for arm in bot.arms.values():
+        arm.reset()
+        arm.open()
+    sleep(2)
+    for arm in bot.arms.values():
+        arm.close()
     up(bot)
     sleep(10)
     up(bot, clockwise=False)   
