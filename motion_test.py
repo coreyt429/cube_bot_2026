@@ -23,7 +23,7 @@ def up(bot, clockwise=True):
 
 
 if __name__ == "__main__":
-    bot = CubeBot("calibration.json")
+    bot = CubeBot("calibration")
     up(bot)
     sleep(10)
     up(bot, clockwise=False)   
