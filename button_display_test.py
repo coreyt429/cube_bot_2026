@@ -124,7 +124,7 @@ def _is_back_item(item: MenuItem) -> bool:
 menu_stack = [root_menu]
 menu_index = 0
 menu_message = ""
-menu_has_interacted = False
+menu_has_interacted = True
 
 last_button = "(none)"
 last_edge = ""
@@ -234,7 +234,7 @@ with gpiod.request_lines(
                     item = items[idx]
                     is_selected = idx == menu_index
                     if is_selected and menu_has_interacted:
-                        draw.rectangle((0, y, device.width - 1, y + 8), fill="white")
+                        draw.rectangle((0, y, device.width - 1, y + 9), fill="white")
                         draw.text((2, y), item.label, fill="black", font=font)
                     else:
                         draw.text((2, y), item.label, fill="white", font=font)
