@@ -221,7 +221,7 @@ with gpiod.request_lines(
 
                 items = _menu_items(menu_stack[-1])
                 line_height = 10
-                menu_top_y = 13
+                menu_top_y = 16
                 footer_height = 10
                 available_height = device.height - menu_top_y - footer_height
                 items_per_page = max(1, available_height // line_height)
