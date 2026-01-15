@@ -3,7 +3,15 @@ from gpiod.line import Direction, Edge
 import time
 from dataclasses import dataclass
 from typing import List, Optional
+from luma.core.interface.serial import i2c
+from luma.oled.device import ssd1306
+from luma.core.render import canvas
+from PIL import ImageFont
+import logging
 
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 buttons = {
     "up": 22,
     "down": 27,
@@ -51,10 +59,7 @@ def _is_falling_event(ev) -> bool:
 
     return "FALL" in str(et).upper()
 
-from luma.core.interface.serial import i2c
-from luma.oled.device import ssd1306
-from luma.core.render import canvas
-from PIL import ImageFont
+
 
 # OLED setup
 serial = i2c(port=1, address=0x3C)
@@ -129,7 +134,7 @@ with gpiod.request_lines(
     consumer="cubebot",
     config={line: settings for line in LINES},
 ) as req:
-    print(f"Monitoring GPIO lines: {LINES} (edge=both). Ctrl-C to stop.")
+    logger.info("Monitoring GPIO lines: %s (edge=both). Ctrl-C to stop.", LINES)
 
     next_draw = 0.0
     draw_interval = 0.2
@@ -148,15 +153,25 @@ with gpiod.request_lines(
                 last_edge = edge
                 last_ts_ns = ev.timestamp_ns
 
-                print(f"{btn} {edge} @ {ev.timestamp_ns}ns")
+                logger.info("%s %s @ %sns", btn, edge, ev.timestamp_ns)
 
                 if edge == "PRESS":
                     current_menu = menu_stack[-1]
                     items = _menu_items(current_menu)
                     if btn == "up":
                         menu_index = (menu_index - 1) % max(1, len(items))
+                        logger.info(
+                            "Menu move up: index=%s label=%s",
+                            menu_index,
+                            items[menu_index].label if items else "",
+                        )
                     elif btn == "down":
                         menu_index = (menu_index + 1) % max(1, len(items))
+                        logger.info(
+                            "Menu move down: index=%s label=%s",
+                            menu_index,
+                            items[menu_index].label if items else "",
+                        )
                     elif btn == "select" and items:
                         selected = items[menu_index]
                         if _is_back_item(selected):
@@ -164,12 +179,25 @@ with gpiod.request_lines(
                                 menu_stack.pop()
                                 menu_index = 0
                                 menu_message = "Back"
+                                logger.info(
+                                    "Menu back: path=%s", _menu_path(menu_stack)
+                                )
                         elif selected.children:
                             menu_stack.append(selected)
                             menu_index = 0
                             menu_message = selected.label
+                            logger.info(
+                                "Menu enter: %s path=%s",
+                                selected.label,
+                                _menu_path(menu_stack),
+                            )
                         else:
                             menu_message = f"Selected {selected.label}"
+                            logger.info(
+                                "Menu select: %s path=%s",
+                                selected.label,
+                                _menu_path(menu_stack),
+                            )
 
         # Throttle OLED refresh rate
         if now >= next_draw:
