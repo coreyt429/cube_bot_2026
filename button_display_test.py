@@ -8,6 +8,7 @@ from luma.oled.device import ssd1306
 from luma.core.render import canvas
 from PIL import ImageFont
 import logging
+import signal
 
 logging.basicConfig(level=logging.INFO)
 
@@ -136,6 +137,12 @@ last_edge = ""
 last_ts_ns = 0
 last_press_ns = {name: 0 for name in buttons}
 DEBOUNCE_NS = 200_000_000  # 200ms
+keep_running = True
+
+
+def _handle_sigint(_signum, _frame) -> None:
+    global keep_running
+    keep_running = False
 
 with gpiod.request_lines(
     CHIP,
@@ -144,10 +151,12 @@ with gpiod.request_lines(
 ) as req:
     logger.info("Monitoring GPIO lines: %s (edge=both). Ctrl-C to stop.", LINES)
 
+    signal.signal(signal.SIGINT, _handle_sigint)
+
     next_draw = 0.0
     draw_interval = 0.2
 
-    while True:
+    while keep_running:
         now = time.monotonic()
 
         # Wait briefly for edge events so we can also refresh the OLED.
@@ -248,3 +257,9 @@ with gpiod.request_lines(
                 footer = menu_message or f"{last_button} {last_edge}".strip()
                 if footer:
                     draw.text((2, device.height - 10), footer[:18], fill="white", font=font)
+
+with canvas(device) as draw:
+    draw.rectangle(device.bounding_box, outline="white", fill="black")
+    draw.text((2, 0), "CubeBot", fill="white", font=font)
+    draw.text((2, 16), "Stopped", fill="white", font=font)
+    draw.text((2, 28), time.strftime("%H:%M:%S"), fill="white", font=font)
