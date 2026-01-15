@@ -1,6 +1,8 @@
 import gpiod
 from gpiod.line import Direction, Edge
 import time
+from dataclasses import dataclass
+from typing import List, Optional
 
 buttons = {
     "up": 22,
@@ -59,6 +61,65 @@ serial = i2c(port=1, address=0x3C)
 device = ssd1306(serial, width=128, height=64)
 font = ImageFont.load_default()
 
+@dataclass
+class MenuItem:
+    label: str
+    children: Optional[List["MenuItem"]] = None
+
+
+def _menu(label: str, children: Optional[List["MenuItem"]] = None) -> MenuItem:
+    return MenuItem(label=label, children=children)
+
+
+root_menu = _menu(
+    "Menu",
+    children=[
+        _menu("load"),
+        _menu("status"),
+        _menu(
+            "calibrate",
+            children=[
+                _menu(
+                    "left",
+                    children=[
+                        _menu("rotate"),
+                        _menu("gripper"),
+                    ],
+                ),
+                _menu(
+                    "right",
+                    children=[
+                        _menu("rotate"),
+                        _menu("gripper"),
+                    ],
+                ),
+            ],
+        ),
+    ],
+)
+
+
+def _menu_path(stack: List[MenuItem]) -> str:
+    if len(stack) <= 1:
+        return "Menu"
+    return " > ".join(item.label for item in stack[1:])
+
+
+def _menu_items(menu: MenuItem) -> List[MenuItem]:
+    items = menu.children or []
+    if menu is root_menu:
+        return items
+    return [_menu(".. (back)")] + items
+
+
+def _is_back_item(item: MenuItem) -> bool:
+    return item.label.startswith("..")
+
+
+menu_stack = [root_menu]
+menu_index = 0
+menu_message = ""
+
 last_button = "(none)"
 last_edge = ""
 last_ts_ns = 0
@@ -89,15 +150,53 @@ with gpiod.request_lines(
 
                 print(f"{btn} {edge} @ {ev.timestamp_ns}ns")
 
+                if edge == "PRESS":
+                    current_menu = menu_stack[-1]
+                    items = _menu_items(current_menu)
+                    if btn == "up":
+                        menu_index = (menu_index - 1) % max(1, len(items))
+                    elif btn == "down":
+                        menu_index = (menu_index + 1) % max(1, len(items))
+                    elif btn == "select" and items:
+                        selected = items[menu_index]
+                        if _is_back_item(selected):
+                            if len(menu_stack) > 1:
+                                menu_stack.pop()
+                                menu_index = 0
+                                menu_message = "Back"
+                        elif selected.children:
+                            menu_stack.append(selected)
+                            menu_index = 0
+                            menu_message = selected.label
+                        else:
+                            menu_message = f"Selected {selected.label}"
+
         # Throttle OLED refresh rate
         if now >= next_draw:
             next_draw = now + draw_interval
 
             with canvas(device) as draw:
                 draw.rectangle(device.bounding_box, outline="white", fill="black")
-                draw.text((4, 4), "CubeBot OLED", fill="white", font=font)
-                draw.text((4, 16), "I2C addr: 0x3C", fill="white", font=font)
-                draw.text((4, 28), time.strftime("%H:%M:%S"), fill="white", font=font)
-                draw.text((4, 40), f"Last: {last_button}", fill="white", font=font)
-                if last_edge:
-                    draw.text((4, 52), f"{last_edge} {last_ts_ns}ns", fill="white", font=font)
+                draw.text((2, 0), _menu_path(menu_stack), fill="white", font=font)
+
+                items = _menu_items(menu_stack[-1])
+                line_height = 10
+                items_per_page = max(1, (device.height - 12) // line_height)
+                page = menu_index // items_per_page
+                start = page * items_per_page
+                end = min(len(items), start + items_per_page)
+
+                y = 12
+                for idx in range(start, end):
+                    item = items[idx]
+                    is_selected = idx == menu_index
+                    if is_selected:
+                        draw.rectangle((0, y - 1, device.width - 1, y + 8), fill="white")
+                        draw.text((2, y), item.label, fill="black", font=font)
+                    else:
+                        draw.text((2, y), item.label, fill="white", font=font)
+                    y += line_height
+
+                footer = menu_message or f"{last_button} {last_edge}".strip()
+                if footer:
+                    draw.text((2, device.height - 10), footer[:18], fill="white", font=font)
