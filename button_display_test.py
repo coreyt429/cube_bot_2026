@@ -77,7 +77,7 @@ def _menu(label: str, children: Optional[List["MenuItem"]] = None) -> MenuItem:
 
 
 root_menu = _menu(
-    "Menu",
+    "CubeBot",
     children=[
         _menu("load"),
         _menu("status"),
