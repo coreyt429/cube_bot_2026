@@ -128,6 +128,8 @@ menu_message = ""
 last_button = "(none)"
 last_edge = ""
 last_ts_ns = 0
+last_press_ns = {name: 0 for name in buttons}
+DEBOUNCE_NS = 200_000_000  # 200ms
 
 with gpiod.request_lines(
     CHIP,
@@ -156,6 +158,12 @@ with gpiod.request_lines(
                 logger.info("%s %s @ %sns", btn, edge, ev.timestamp_ns)
 
                 if edge == "PRESS":
+                    prev_ns = last_press_ns.get(btn, 0)
+                    if ev.timestamp_ns - prev_ns < DEBOUNCE_NS:
+                        logger.debug("Debounce press ignored: %s", btn)
+                        continue
+                    last_press_ns[btn] = ev.timestamp_ns
+
                     current_menu = menu_stack[-1]
                     items = _menu_items(current_menu)
                     if btn == "up":
