@@ -263,3 +263,6 @@ with canvas(device) as draw:
     draw.text((2, 0), "CubeBot", fill="white", font=font)
     draw.text((2, 16), "Stopped", fill="white", font=font)
     draw.text((2, 28), time.strftime("%H:%M:%S"), fill="white", font=font)
+
+import time
+time.sleep(10))
