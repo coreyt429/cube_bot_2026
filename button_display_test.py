@@ -234,7 +234,7 @@ with gpiod.request_lines(
                     item = items[idx]
                     is_selected = idx == menu_index
                     if is_selected and menu_has_interacted:
-                        draw.rectangle((0, y + 1, device.width - 1, y + 10), fill="white")
+                        draw.rectangle((0, y + 1, device.width - 1, y + 9), fill="white")
                         draw.text((2, y), item.label, fill="black", font=font)
                     else:
                         draw.text((2, y), item.label, fill="white", font=font)
