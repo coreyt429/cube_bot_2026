@@ -111,7 +111,7 @@ root_menu = _menu(
 
 def _menu_path(stack: List[MenuItem]) -> str:
     if len(stack) <= 1:
-        return "Menu"
+        return "CubeBot"
     return " > ".join(item.label for item in stack[1:])
 
 
