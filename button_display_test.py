@@ -124,6 +124,7 @@ def _is_back_item(item: MenuItem) -> bool:
 menu_stack = [root_menu]
 menu_index = 0
 menu_message = ""
+menu_has_interacted = False
 
 last_button = "(none)"
 last_edge = ""
@@ -168,6 +169,7 @@ with gpiod.request_lines(
                     items = _menu_items(current_menu)
                     if btn == "up":
                         menu_index = (menu_index - 1) % max(1, len(items))
+                        menu_has_interacted = True
                         logger.info(
                             "Menu move up: index=%s label=%s",
                             menu_index,
@@ -175,12 +177,14 @@ with gpiod.request_lines(
                         )
                     elif btn == "down":
                         menu_index = (menu_index + 1) % max(1, len(items))
+                        menu_has_interacted = True
                         logger.info(
                             "Menu move down: index=%s label=%s",
                             menu_index,
                             items[menu_index].label if items else "",
                         )
                     elif btn == "select" and items:
+                        menu_has_interacted = True
                         selected = items[menu_index]
                         if _is_back_item(selected):
                             if len(menu_stack) > 1:
@@ -217,17 +221,20 @@ with gpiod.request_lines(
 
                 items = _menu_items(menu_stack[-1])
                 line_height = 10
-                items_per_page = max(1, (device.height - 12) // line_height)
+                menu_top_y = 13
+                footer_height = 10
+                available_height = device.height - menu_top_y - footer_height
+                items_per_page = max(1, available_height // line_height)
                 page = menu_index // items_per_page
                 start = page * items_per_page
                 end = min(len(items), start + items_per_page)
 
-                y = 12
+                y = menu_top_y
                 for idx in range(start, end):
                     item = items[idx]
                     is_selected = idx == menu_index
-                    if is_selected:
-                        draw.rectangle((0, y - 1, device.width - 1, y + 8), fill="white")
+                    if is_selected and menu_has_interacted:
+                        draw.rectangle((0, y, device.width - 1, y + 8), fill="white")
                         draw.text((2, y), item.label, fill="black", font=font)
                     else:
                         draw.text((2, y), item.label, fill="white", font=font)
