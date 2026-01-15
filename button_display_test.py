@@ -174,7 +174,7 @@ with gpiod.request_lines(
                 last_edge = edge
                 last_ts_ns = ev.timestamp_ns
 
-                logger.info("%s %s @ %sns", btn, edge, ev.timestamp_ns)
+                logger.debug("%s %s @ %sns", btn, edge, ev.timestamp_ns)
 
                 if edge == "PRESS":
                     prev_ns = last_press_ns.get(btn, 0)
