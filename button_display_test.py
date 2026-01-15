@@ -257,3 +257,9 @@ with gpiod.request_lines(
                 footer = menu_message or f"{last_button} {last_edge}".strip()
                 if footer:
                     draw.text((2, device.height - 10), footer[:18], fill="white", font=font)
+
+with canvas(device) as draw:
+    draw.rectangle(device.bounding_box, outline="white", fill="black")
+    draw.text((2, 0), "CubeBot", fill="white", font=font)
+    draw.text((2, 16), "Stopped", fill="white", font=font)
+    draw.text((2, 28), time.strftime("%H:%M:%S"), fill="white", font=font)
