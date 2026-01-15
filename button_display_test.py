@@ -61,10 +61,14 @@ def _is_falling_event(ev) -> bool:
     return "FALL" in str(et).upper()
 
 
+def do_nothing():
+    pass
 
 # OLED setup
 serial = i2c(port=1, address=0x3C)
 device = ssd1306(serial, width=128, height=64)
+device.cleanup = do_nothing
+
 font = ImageFont.load_default()
 
 @dataclass
