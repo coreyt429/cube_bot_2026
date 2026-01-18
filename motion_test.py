@@ -6,7 +6,7 @@ from maestro import Servo
 from arm import Arm
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("calibrate")
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 def up(bot, clockwise=True):

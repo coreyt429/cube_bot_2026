@@ -17,12 +17,13 @@ parts from the original project.
 
 Status
 Hardware
-- Left gripper: assembled and tested, not mounted
+- Left gripper: assembled and tested, mounted
 - Right gripper: assembled, tested, mounted
-- Camera: dry fit; waiting on a longer cable
+- Camera: dry fit; waiting on a longer cable, tested with short cable
+- buttons and screen: affixed to PCB and tested
 
 Software
-- Pi Zero: ground zero
+- Pi Zero: 
 - Pololu Maestro 12: validated previous configuration and tools
   - https://www.pololu.com/docs/0J40/3.b
 - cube_bot.py: updated for new claw configuration; tested with calibrate.py
@@ -46,3 +47,16 @@ For this iteration, I am leaning toward a web-based interface for:
 
 This build also adds buttons and a small LCD for more hands-on control and
 learning.
+
+
+Updates
+20260113
+  - Testing hardware now.  I can move to final assembly once I have a longer camera cable.
+  - Testing motion, a lot of my previous work will translate. I'm finding that the claws
+    are a danger to each other with or without the cube. Bot will need to be aware of
+    and orchestrate arms to avoid disaster.  I may also need to use the camera to detect
+    bad cube alignment.
+  - Next steps:
+    - final assembly
+    - cube loading process
+    - basic cube moves U, D, L, R, F, B
