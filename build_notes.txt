@@ -3,7 +3,9 @@ OS:
   - update os:
     - sudo apt update
     - sudo apt upgrade
-    - sudo apt install -y python3-picamera2
+    - sudo apt install -y libcap-dev pkg-config build-essential python3-dev python3-luma.oled python3-pil
+    
+
   - sudo raspi-config:
     - enable VNC
     - enable i2c

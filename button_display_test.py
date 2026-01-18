@@ -29,7 +29,7 @@ settings = gpiod.LineSettings(
     direction=Direction.INPUT,
     edge_detection=Edge.BOTH,
     # If your libgpiod build supports it, uncomment to use internal pull-ups:
-    # bias=gpiod.line.Bias.PULL_UP,
+    bias=gpiod.line.Bias.PULL_UP,
 )
 
 # Helper to robustly detect falling edge events across gpiod versions.
