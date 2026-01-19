@@ -19,8 +19,9 @@ Status
 Hardware
 - Left gripper: assembled and tested, mounted
 - Right gripper: assembled, tested, mounted
-- Camera: dry fit; waiting on a longer cable, tested with short cable
+- Camera: mounted and tested
 - buttons and screen: affixed to PCB and tested
+- final assembly: complete
 
 Software
 - Pi Zero: 
@@ -56,7 +57,38 @@ Updates
     are a danger to each other with or without the cube. Bot will need to be aware of
     and orchestrate arms to avoid disaster.  I may also need to use the camera to detect
     bad cube alignment.
+  - baseplate redesigned again to allow more headroom for wiring.
   - Next steps:
     - final assembly
     - cube loading process
     - basic cube moves U, D, L, R, F, B
+
+20260119
+  - Hardware assembled.
+  - scrapped uv for pi side python.  Too many issues working with buttons and cam, and the OS python seems sufficient.
+  - calibration and rudimentary tests for display, buttons, and cam passed
+  - Next Steps:
+    - cube loading process:
+      - use buttons and display
+      - user experience:
+        - select load menu
+        - grippers open then close slightly to approximate cube size
+        - user uses up and down buttons to adjust grip
+        - user presses select to continue
+    - calibration:
+      - menu tree:
+        - Left/Right:
+          - Gripper:
+             - Open
+             - Close
+          - Rotation:
+            - 0
+            - 90
+            - 180
+            - 270
+      - user experience:
+        - user navigates the menu to select the postion that need adjusting
+        - user uses up and down buttons to adjust position
+        - user uses select button to save and go back to the menu
+    - basic cube moves U, D, L, R, F, B      
+
