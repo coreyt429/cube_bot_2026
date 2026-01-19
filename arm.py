@@ -67,16 +67,20 @@ class Arm:
     def close(self, wait=True):
         """Close the gripper"""
         logger.debug("close(wait=%s)", wait)
+        self.set_speed(75)
         target = self.cfg.qus.get("closed", self.cfg.qus.get("retracted", 10000))
         self.servos["open"].set_qus(target, wait=wait)
         self.extended = False
+        self.set_speed(0)
 
     def open(self, wait=True):
         """Open the gripper"""
         logger.debug("open(wait=%s)", wait)
+        self.set_speed(75)
         target = self.cfg.qus.get("open", self.cfg.qus.get("extended", 6888))
         self.servos["open"].set_qus(target, wait=wait)
         self.extended = True
+        self.set_speed(0)
 
     def retract(self, wait=True):
         """Backward-compatible alias for close()"""
@@ -90,9 +94,9 @@ class Arm:
         """Set the speed for the arm"""
         logger.debug("set_speed(speed=%d)", speed)
         speed = max(0, min(75, speed))
-        self.servos["open"].set_speed(speed)
-        self.servos["rotate"].set_speed(speed)
-
+        for servo in self.servos.values():
+            servo.set_speed(speed)
+        
     def set_degrees(self, degrees, wait=True):
         """Set the arm to a specific angle. 0 is straight out, 180 is straight back"""
         logger.debug("set_degrees(degrees=%s, wait=%s)", degrees, wait)
@@ -103,6 +107,7 @@ class Arm:
         """Rotate the arm to a specific angle. + clockwise, - counter-clockwise"""
         logger.debug("rotate(degrees=%s, wait=%s)", degrees, wait)
         initial_state = self.extended
+        self.set_speed(75)
         # counter-clockwise rotation
         if degrees < 0:
             # rotate out full spans
@@ -129,6 +134,7 @@ class Arm:
             self.close()
         else:
             self.wiggle()
+        self.set_speed(0)
         return
 
     def wiggle(self):

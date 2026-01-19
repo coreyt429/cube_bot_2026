@@ -418,6 +418,9 @@ def _sigint_handler_factory(bot: CubeBot):
         try:
             for arm in bot.arms.values():
                 arm.open(wait=True)
+                arm.reset(wait=True)
+                arm.open(wait=True)
+                arm.set_speed(0)
         finally:
             print("\nInterrupted. Opened claws.")
             sys.exit(0)
