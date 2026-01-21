@@ -141,29 +141,29 @@ def main():
                     "gripper": {
                         "open": {
                             "action": calibrate,
-                            "parameters": [bot, "left", "gripper", "open"],
+                            "parameters": [bot, "l", "gripper", "open"],
                         },
                         "close": {
                             "action": calibrate,
-                            "parameters": [bot, "left", "gripper", "close"],
+                            "parameters": [bot, "l", "gripper", "close"],
                         },
                     },
                     "rotate": {
                         "0 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "left", "rotate", 0],
+                            "parameters": [bot, "l", "rotate", 0],
                         },
                         "90 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "left", "rotate", 90],
+                            "parameters": [bot, "l", "rotate", 90],
                         },
                         "180 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "left", "rotate", 180],
+                            "parameters": [bot, "l", "rotate", 180],
                         },
                         "270 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "left", "rotate", 270],
+                            "parameters": [bot, "l", "rotate", 270],
                         },
                     },
                 },
@@ -171,29 +171,29 @@ def main():
                     "gripper": {
                         "open": {
                             "action": calibrate,
-                            "parameters": [bot, "right", "gripper", "open"],
+                            "parameters": [bot, "r", "gripper", "open"],
                         },
                         "close": {
                             "action": calibrate,
-                            "parameters": [bot, "right", "gripper", "close"],
+                            "parameters": [bot, "r", "gripper", "close"],
                         },
                     },
                     "rotate": {
                         "0 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "right", "rotate", 0],
+                            "parameters": [bot, "r", "rotate", 0],
                         },
                         "90 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "right", "rotate", 90],
+                            "parameters": [bot, "r", "rotate", 90],
                         },
                         "180 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "right", "rotate", 180],
+                            "parameters": [bot, "r", "rotate", 180],
                         },
                         "270 deg": {
                             "action": calibrate,
-                            "parameters": [bot, "right", "rotate", 270],
+                            "parameters": [bot, "r", "rotate", 270],
                         },
                     },
                 },
