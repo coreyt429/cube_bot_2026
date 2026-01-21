@@ -20,3 +20,61 @@ OS:
     - uv pip install luma.oled pillow
     - 
 
+
+
+
+sudo nano /etc/systemd/system/boot-display-message.service
+
+[Unit]
+Description=Show boot progress message on OLED
+# If your display is I2C, make sure i2c-dev is loaded first
+After=systemd-modules-load.service
+# If your script needs the filesystem ready
+After=local-fs.target
+# If the OLED is part of your normal app stack, you can also do:
+# After=multi-user.target
+
+[Service]
+Type=oneshot
+User=coreyt
+WorkingDirectory=/home/coreyt/cube_bot_2026
+ExecStart=/usr/bin/python3 /home/coreyt/cube_bot_2026/display_message.py "Booting..."
+# If you need I2C access as non-root:
+# SupplementaryGroups=i2c,gpio
+
+[Install]
+WantedBy=multi-user.target
+
+sudo nano /etc/systemd/system/cubebot-main.service
+[Unit]
+Description=CubeBot Main Application
+# Wait until the system is fully usable
+After=multi-user.target
+# Make sure the boot message ran first
+After=boot-display-message.service
+
+[Service]
+Type=simple
+User=coreyt
+WorkingDirectory=/home/coreyt/cube_bot_2026
+
+# Use system python explicitly (avoid pyenv surprises at boot)
+ExecStart=/usr/bin/python3 /home/coreyt/cube_bot_2026/main.py
+
+# Restart if it crashes (useful for robots)
+Restart=on-failure
+RestartSec=2
+
+# If you need GPIO/I2C as non-root
+SupplementaryGroups=gpio
+
+# Ensure stdout/stderr go to journal
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+
+sudo systemctl daemon-reload
+sudo systemctl enable cubebot-main.service
