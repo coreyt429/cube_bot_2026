@@ -66,6 +66,94 @@ class MenuItem:
     parameters: Optional[List[object]] = None
 
 
+@dataclass
+class ButtonEvent:
+    btn: str
+    edge: str  # "PRESS" or "RELEASE"
+    timestamp_ns: int
+    line_offset: int
+
+
+class Buttons:
+    """Owns the gpiod line request and exposes button events to whoever is active."""
+
+    def __init__(
+        self,
+        button_pins: dict,
+        chip: str = "/dev/gpiochip0",
+        debounce_ns: int = 200_000_000,
+        consumer: str = "cubebot",
+    ) -> None:
+        self.button_pins = dict(button_pins)
+        self.line_to_button = {v: k for k, v in self.button_pins.items()}
+        self.chip = chip
+        self.debounce_ns = debounce_ns
+        self.consumer = consumer
+
+        self._req = None
+        self._last_press_ns = {name: 0 for name in self.button_pins}
+
+        self.settings = gpiod.LineSettings(
+            direction=Direction.INPUT,
+            edge_detection=Edge.BOTH,
+            bias=gpiod.line.Bias.PULL_UP,
+        )
+
+    def open(self):
+        lines = list(self.line_to_button.keys())
+        self._req = gpiod.request_lines(
+            self.chip,
+            consumer=self.consumer,
+            config={line: self.settings for line in lines},
+        )
+        return self
+
+    def close(self) -> None:
+        if self._req is not None:
+            try:
+                self._req.close()
+            finally:
+                self._req = None
+
+    def __enter__(self):
+        return self.open()
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        self.close()
+
+    def wait(self, timeout: float = 0.05) -> bool:
+        if self._req is None:
+            raise RuntimeError("Buttons not opened; use as a context manager")
+        return self._req.wait_edge_events(timeout=timeout)
+
+    def read_events(self) -> List[ButtonEvent]:
+        if self._req is None:
+            raise RuntimeError("Buttons not opened; use as a context manager")
+
+        out: List[ButtonEvent] = []
+        for ev in self._req.read_edge_events():
+            btn = self.line_to_button.get(ev.line_offset, f"GPIO{ev.line_offset}")
+            edge = "PRESS" if _is_falling_event(ev) else "RELEASE"
+
+            # Debounce presses only
+            if edge == "PRESS":
+                prev_ns = self._last_press_ns.get(btn, 0)
+                if ev.timestamp_ns - prev_ns < self.debounce_ns:
+                    logger.debug("Debounce press ignored: %s", btn)
+                    continue
+                self._last_press_ns[btn] = ev.timestamp_ns
+
+            out.append(
+                ButtonEvent(
+                    btn=btn,
+                    edge=edge,
+                    timestamp_ns=ev.timestamp_ns,
+                    line_offset=ev.line_offset,
+                )
+            )
+        return out
+
+
 class Menu:
     def __init__(
         self,
@@ -79,8 +167,8 @@ class Menu:
     ) -> None:
         self.display = display
         self.title = title
-        self.buttons = buttons or dict(DEFAULT_BUTTONS)
-        self.line_to_button = {v: k for k, v in self.buttons.items()}
+        self.button_pins = buttons or dict(DEFAULT_BUTTONS)
+        self.line_to_button = {v: k for k, v in self.button_pins.items()}
         self.chip = chip
         self.debounce_ns = debounce_ns
         self.draw_interval = draw_interval
@@ -95,13 +183,7 @@ class Menu:
         self.last_button = "(none)"
         self.last_edge = ""
         self.last_ts_ns = 0
-        self.last_press_ns = {name: 0 for name in self.buttons}
-
-        self.settings = gpiod.LineSettings(
-            direction=Direction.INPUT,
-            edge_detection=Edge.BOTH,
-            bias=gpiod.line.Bias.PULL_UP,
-        )
+        self.last_press_ns = {name: 0 for name in self.button_pins}
 
     def _parse_menu(self, definition) -> List[MenuItem]:
         items: List[MenuItem] = []
@@ -155,7 +237,7 @@ class Menu:
         params = item.parameters or []
         logger.info("Menu action: %s params=%s", item.label, params)
         try:
-            item.action(self.display, *params)
+            item.action(self.display, self.buttons_service, *params)
         except Exception:
             logger.exception("Menu action failed: %s", item.label)
             self.menu_message = f"Failed: {item.label}"
@@ -230,12 +312,16 @@ class Menu:
                 draw.text((2, device.height - 10), footer[:18], fill="white", font=font)
 
     def run(self) -> None:
-        lines = list(self.line_to_button.keys())
-        with gpiod.request_lines(
-            self.chip,
+        with Buttons(
+            button_pins=self.button_pins,
+            chip=self.chip,
+            debounce_ns=self.debounce_ns,
             consumer="cubebot",
-            config={line: self.settings for line in lines},
-        ) as req:
+        ) as buttons:
+            # Expose to actions while they are active
+            self.buttons_service = buttons
+
+            lines = list(self.line_to_button.keys())
             logger.info(
                 "Monitoring GPIO lines: %s (edge=both). Ctrl-C to stop.", lines
             )
@@ -246,17 +332,14 @@ class Menu:
             while self.keep_running:
                 now = time.monotonic()
 
-                if req.wait_edge_events(timeout=0.05):
-                    for ev in req.read_edge_events():
-                        btn = self.line_to_button.get(ev.line_offset, f"GPIO{ev.line_offset}")
-                        edge = "PRESS" if _is_falling_event(ev) else "RELEASE"
+                if buttons.wait(timeout=0.05):
+                    for bev in buttons.read_events():
+                        self.last_button = bev.btn
+                        self.last_edge = bev.edge
+                        self.last_ts_ns = bev.timestamp_ns
 
-                        self.last_button = btn
-                        self.last_edge = edge
-                        self.last_ts_ns = ev.timestamp_ns
-
-                        if edge == "PRESS":
-                            self._handle_press(btn, ev.timestamp_ns)
+                        if bev.edge == "PRESS":
+                            self._handle_press(bev.btn, bev.timestamp_ns)
 
                 if now >= next_draw:
                     next_draw = now + self.draw_interval
@@ -265,10 +348,30 @@ class Menu:
         _draw_message(self.display, self.title, ["Stopped", time.strftime("%H:%M:%S")])
 
 
-def count_down(display, seconds: int) -> None:
+def count_down(display, buttons: Buttons, seconds: int) -> None:
     for remaining in range(int(seconds), -1, -1):
         _draw_message(display, "Countdown", [f"{remaining}..."])
         time.sleep(1)
+
+
+def interactive_counter(display, buttons: Buttons) -> None:
+    count = 0
+    _draw_message(display, "Interactive", [str(count), "Up:+  Down:-", "Select: exit"])
+
+    while True:
+        if buttons.wait(timeout=0.05):
+            for ev in buttons.read_events():
+                if ev.edge != "PRESS":
+                    continue
+                if ev.btn == "up":
+                    count += 1
+                elif ev.btn == "down":
+                    count -= 1
+                elif ev.btn == "select":
+                    _draw_message(display, "Interactive", ["Exit"])
+                    return
+
+                _draw_message(display, "Interactive", [str(count), "Up:+  Down:-", "Select: exit"])
 
 
 def test_function() -> None:
@@ -279,7 +382,11 @@ def test_function() -> None:
             "item 1": {
                 "action": count_down,
                 "parameters": [5],
-            }
+            },
+            "interactive": {
+                "action": interactive_counter,
+                "parameters": [],
+            },
         },
         {
             "item 2": {
