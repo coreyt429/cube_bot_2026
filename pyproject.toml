@@ -3,8 +3,8 @@ name = "cube-solver"
 version = "0.1.0"
 description = "Software for Rubik's cube solver bot"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = ["ruff", "pylint", "pyserial", "kociemba", "gpiod", "rich", "requests", "picamera2"]
+requires-python = ">=3.12"
+dependencies = ["ruff", "pylint", "pyserial", "kociemba", "rich", "requests",]
 
 [tool.uv]
 # This project expects system packages (libcamera, picamera2)
