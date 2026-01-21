@@ -24,7 +24,7 @@ def calibrate(display, buttons: Buttons, bot: CubeBot, arm_key: str, servo_key: 
         ],
     )
     if servo_key == "rotate":
-        arm.rotate(position)
+        arm.set_degrees(position)
     elif servo_key == "open":
         if position == "open":
             arm.open()
