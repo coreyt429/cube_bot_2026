@@ -21,21 +21,26 @@ def load_cube(display, buttons: Buttons, bot: CubeBot) -> None:
                     for arm in bot.arms.values():
                         servo = arm.servos['open']
                         current_qus = servo.qus
-                        servo.set_qus(current_qus + 100, wait=True)
+                        servo.set_qus(current_qus - 100, wait=True)
                         positions.append(servo.qus)
                 elif ev.btn == "down":
                     positions.clear()
                     for arm in bot.arms.values():
                         servo = arm.servos['open']
                         current_qus = servo.qus
-                        servo.set_qus(current_qus - 100, wait=True)
+                        servo.set_qus(current_qus + 100, wait=True)
                         positions.append(servo.qus)
                 elif ev.btn == "select":
                     display.draw_message("Load Cube", ["Exit"])
                     return
+                display.draw_message("Load Cube", [str(positions), "Up: close  Down: open", "Select: exit"])
 
-                display.draw_message("Load Cube", ['', "Up: close  Down: open", "Select: exit"])
-
+def unload_cube(display, buttons: Buttons, bot: CubeBot) -> None:
+    """Unload cube from CubeBot"""
+    bot.arms['l'].open()
+    bot.arms['r'].open()
+    display.draw_message("Unload Cube", [''])
+   
 def main():
     """Main logic"""
     bot = CubeBot("calibration")
@@ -43,6 +48,10 @@ def main():
         {
             "load cube": {
                 "action": load_cube,
+                "parameters": [bot],
+            },
+            "unload cube": {
+                "action": unload_cube,
                 "parameters": [bot],
             }
         },
