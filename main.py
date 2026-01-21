@@ -25,7 +25,7 @@ def calibrate(display, buttons: Buttons, bot: CubeBot, arm_key: str, servo_key: 
     )
     if servo_key == "rotate":
         arm.rotate(position)
-    elif servo_key == "gripper":
+    elif servo_key == "open":
         if position == "open":
             arm.open()
         elif position == "close":
@@ -141,11 +141,11 @@ def main():
                     "gripper": {
                         "open": {
                             "action": calibrate,
-                            "parameters": [bot, "l", "gripper", "open"],
+                            "parameters": [bot, "l", "open", "open"],
                         },
                         "close": {
                             "action": calibrate,
-                            "parameters": [bot, "l", "gripper", "close"],
+                            "parameters": [bot, "l", "open", "close"],
                         },
                     },
                     "rotate": {
@@ -171,11 +171,11 @@ def main():
                     "gripper": {
                         "open": {
                             "action": calibrate,
-                            "parameters": [bot, "r", "gripper", "open"],
+                            "parameters": [bot, "r", "open", "open"],
                         },
                         "close": {
                             "action": calibrate,
-                            "parameters": [bot, "r", "gripper", "close"],
+                            "parameters": [bot, "r", "open", "close"],
                         },
                     },
                     "rotate": {
