@@ -10,22 +10,26 @@ def load_cube(display, buttons: Buttons, bot: CubeBot) -> None:
     bot.arms['l'].open()
     bot.arms['r'].open()
     display.draw_message("Load Cube", ['', "Up: close  Down: open", "Select: exit"])
-
+    positions = []
     while True:
         if buttons.wait(timeout=0.05):
             for ev in buttons.read_events():
                 if ev.edge != "PRESS":
                     continue
                 if ev.btn == "up":
+                    positions.clear()
                     for arm in bot.arms.values():
                         servo = arm.servos['open']
                         current_qus = servo.qus
-                        servo.set_qus(current_qus + 4, wait=True)
+                        servo.set_qus(current_qus + 100, wait=True)
+                        positions.append(servo.qus)
                 elif ev.btn == "down":
+                    positions.clear()
                     for arm in bot.arms.values():
                         servo = arm.servos['open']
                         current_qus = servo.qus
-                        servo.set_qus(current_qus - 4, wait=True)
+                        servo.set_qus(current_qus - 100, wait=True)
+                        positions.append(servo.qus)
                 elif ev.btn == "select":
                     display.draw_message("Load Cube", ["Exit"])
                     return
