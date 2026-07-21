@@ -11,8 +11,8 @@ from luma.core.render import canvas
 logger = logging.getLogger(__name__)
 
 DEFAULT_BUTTONS = {
-    "up": 22,
-    "down": 27,
+    "up": 27,
+    "down": 22,
     "select": 17,
 }
 

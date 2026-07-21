@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 buttons = {
-    "up": 22,
-    "down": 27,
+    "up": 27,
+    "down": 22,
     "select": 17,
 }
 
