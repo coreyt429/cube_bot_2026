@@ -111,6 +111,9 @@ class Arm:
     def set_degrees(self, degrees, wait=True):
         """Set the arm to a specific angle. 0 is straight out, 180 is straight back"""
         logger.debug("set_degrees(degrees=%s, wait=%s)", degrees, wait)
+        if self.rotation_position == degrees:
+            self.deg = degrees
+            return
         self.deg = degrees
         self.servos["rotate"].set_qus(self.cfg.qus.get(str(degrees), 10000), wait=wait)
 
@@ -167,7 +170,13 @@ class Arm:
     def reset(self, degrees=90, wait=True):
         """Reset the arm to a known position"""
         logger.debug("reset(degrees=%s, wait=%s)", degrees, wait)
-        self.open(wait=wait)
+        if self.rotation_position == degrees:
+            self.deg = degrees
+            if self.gripper_position == "open":
+                self.close(wait=wait)
+            return
+        if self.gripper_position == "close":
+            self.open(wait=wait)
         self.servos["rotate"].set_degrees(deg=degrees, wait=wait)
         self.deg = degrees
         self.close(wait=wait)
