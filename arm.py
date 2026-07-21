@@ -64,6 +64,17 @@ class Arm:
         rotate_ch = getattr(self.cfg, "rotate_channel", "?")
         return f"Arm(key={key}, open_ch={open_ch}, rotate_ch={rotate_ch})"
 
+    @property
+    def gripper_position(self) -> str:
+        """Return the commanded gripper position: ``open`` or ``close``."""
+        return "open" if self.extended else "close"
+
+    @property
+    def rotation_position(self) -> int:
+        """Return the servo's current angle rounded to the nearest 90 degrees."""
+        degrees = self.servos["rotate"].deg
+        return max(0, min(270, int((degrees + 45) // 90) * 90))
+
     def close(self, wait=True):
         """Close the gripper"""
         logger.debug("close(wait=%s)", wait)
